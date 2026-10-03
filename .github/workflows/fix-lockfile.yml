@@ -1,0 +1,37 @@
+name: Fix npm lockfile registry
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fix-lockfile.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace inaccessible Kimi npm mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's#https://npm\.mirrors\.msh\.team/#https://registry.npmjs.org/#g' package-lock.json
+          if grep -q 'npm.mirrors.msh.team' package-lock.json; then
+            echo "Mirror URL still present"
+            exit 1
+          fi
+      - name: Commit fixed lockfile
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "No lockfile changes needed."
+            exit 0
+          fi
+          git commit -m "Fix npm registry URLs for Railway"
+          git push
