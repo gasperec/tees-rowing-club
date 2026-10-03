@@ -1,0 +1,71 @@
+name: Unpack Kimi project
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*.zip"
+      - ".github/workflows/unpack-kimi.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Find and unpack uploaded Kimi archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$(find . -maxdepth 1 -type f -name '*.zip' | head -n 1)"
+          if [ -z "$ZIP" ]; then
+            echo "No ZIP archive found at repository root."
+            exit 1
+          fi
+
+          rm -rf .kimi-unpack
+          mkdir .kimi-unpack
+          unzip -q "$ZIP" -d .kimi-unpack
+
+          if [ ! -d ".kimi-unpack/app" ]; then
+            echo "Expected app/ folder was not found in the archive."
+            exit 1
+          fi
+
+          # Copy the deployable application to repository root, including dotfiles.
+          cp -a .kimi-unpack/app/. ./
+
+          # Keep the original deployment guide if present.
+          if [ -f ".kimi-unpack/Deployment-Guide-Hostinger.md" ]; then
+            cp ".kimi-unpack/Deployment-Guide-Hostinger.md" "./Deployment-Guide-Hostinger.md"
+          fi
+
+          rm -rf .kimi-unpack
+          rm -f "$ZIP"
+
+      - name: Verify project structure
+        shell: bash
+        run: |
+          test -f package.json
+          test -f package-lock.json
+          test -f src/main.tsx
+          test -f api/boot.ts
+          echo "Kimi project unpacked successfully."
+
+      - name: Commit unpacked project
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Unpack Kimi Tees Rowing Club project"
+          git push
